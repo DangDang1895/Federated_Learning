@@ -4,15 +4,19 @@ def split_noniid(train_data, alpha, n_clients):
     
     '''cifar10数据集需要'''
     targets = torch.tensor(train_data.targets)
-    '''cifar10数据集需要'''
+
 
     n_classes = len(train_data.classes)
     label_distribution = np.random.dirichlet([alpha]*n_clients, n_classes)
 
     data_id = [i for i in range(len(train_data))]
 
+    #mnist
     #class_idcs = [np.argwhere(train_data.targets[data_id]==y).flatten() for y in range(n_classes)]
+    
+    #cifar10
     class_idcs = [np.argwhere(targets[data_id]==y).flatten() for y in range(n_classes)]
+
     #找到分类标签为0的数据index，将它们放在一起。
     #找到分类标签为1的数据index，将它们放在一起。
     #找到分类标签为9的数据index，将它们放在一起。
