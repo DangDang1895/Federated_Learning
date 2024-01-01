@@ -1,7 +1,5 @@
 import torch
 from torch.utils.data import DataLoader
-import numpy as np
-import copy
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -99,6 +97,10 @@ class Server():
         for name in self.W:
             tmp = torch.sum(torch.stack([client.dW[name].data * data_rate[client.Client_id] for client in clients]), dim=0).clone()
             self.W[name].data += tmp
+
+    # 定义了一个缓存模型的方法，该方法将模型的参数、客户端ID和准确率存储到模型缓存列表中。
+    def cache_model(self, idcs, accuracies):
+        self.model_cache += [(idcs, [accuracies[i] for i in idcs])]
 
 
 
