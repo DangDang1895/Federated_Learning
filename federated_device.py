@@ -51,7 +51,7 @@ class Client():
     def compute_weight_update(self, epochs):
         self.W_old = {key : value.clone() for key, value in self.W.items()}#保存旧模型参数
         '''****************训练***************************'''
-        self.optimizer = torch.optim.SGD(self.Client_net.parameters(), lr=0.01, momentum=0.9)
+        self.optimizer = torch.optim.SGD(self.Client_net.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-5)
         self.Client_net.train()  
         for _ in range(epochs):
             for x, y in self.Client_train_loader: 
