@@ -3,10 +3,8 @@ from torch.utils.data import DataLoader
 import numpy as np
 import copy
 
-
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-'''************************客户端操作********************************'''
  # 计算差并将结果存储到目标
 def subtract_(W, W_old):
     dW = {key : torch.zeros_like(value) for key, value in W.items()}
@@ -26,25 +24,12 @@ def eval_op(model,loader):
             correct += (predicted == y).sum().item()
     ## 返回准确率
     return correct/samples
-
-# 定义旋转客户端数据集的操作
-def collate_fn(batch):
-    x, y = zip(*batch)
-    x_rotated = [torch.rot90(img, 2, (1, 2)) for img in x]
-    return torch.stack(x_rotated), torch.tensor(y) 
     
 '''***************************客户端******************************************'''
 class Client():
     def __init__(self, model, data, client_id, batch_size=64,train_frac=0.8):
         super().__init__()  
-        """     
-        Example:
-            >>> # xdoctest: +SKIP
-            >>> optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
-            >>> optimizer.zero_grad()
-            >>> loss_fn(model(input), target).backward()
-            >>> optimizer.step() 
-        """
+
         self.Client_net = model.to(device)
         self.Client_data = data
         self.Client_id = client_id
@@ -58,25 +43,15 @@ class Client():
         n_eval = len(data) - n_train 
 
         data_train, data_eval = torch.utils.data.random_split(self.Client_data, [n_train, n_eval])
-        '''  
-        if self.Client_id<5:
-            #旋转数据
-            self.Client_train_loader = DataLoader(data_train, batch_size=batch_size, shuffle=True,collate_fn=collate_fn)
-            self.Client_eval_loader = DataLoader(data_eval, batch_size=batch_size, shuffle=True,collate_fn=collate_fn)
-            
-        else:
-            self.Client_train_loader = DataLoader(data_train, batch_size=batch_size, shuffle=True)
-            self.Client_eval_loader = DataLoader(data_eval, batch_size=batch_size, shuffle=True) 
-        '''
+        self.data_size = len(data_train) #获取客户端数据集的大小
         self.Client_train_loader = DataLoader(data_train, batch_size=batch_size, shuffle=True)
         self.Client_eval_loader = DataLoader(data_eval, batch_size=batch_size, shuffle=True)
-
     
     # 训练客户端模型并且计算权重更新
     def compute_weight_update(self, epochs):
         self.W_old = {key : value.clone() for key, value in self.W.items()}#保存旧模型参数
         '''****************训练***************************'''
-        self.optimizer = torch.optim.SGD(self.Client_net.parameters(), lr=0.01, momentum=0.9,weight_decay=0.02)
+        self.optimizer = torch.optim.SGD(self.Client_net.parameters(), lr=0.01, momentum=0.9)
         self.Client_net.train()  
         for _ in range(epochs):
             for x, y in self.Client_train_loader: 
@@ -97,7 +72,6 @@ class Client():
 
     def eval(self):
         acc = eval_op(model=self.Client_net,loader=self.Client_eval_loader)
-        #print("客户端:",self.Client_id,'\t',"acc=",acc)
         return acc
       
 
@@ -118,13 +92,14 @@ class Server():
     
     #定义了一个聚合权重更新的方法，该方法将客户端的权重更新聚合到服务器端的权重上，从而得到新的全局模型。
     def aggregate_weight_updates(self, clients):
+        all_client_data_size = 0.0
+        for client in clients:
+            all_client_data_size += client.data_size
+        data_rate = {client.Client_id : client.data_size/all_client_data_size for client in clients}
         for name in self.W:
-            tmp = torch.mean(torch.stack([client.dW[name].data for client in clients]), dim=0).clone()
+            tmp = torch.sum(torch.stack([client.dW[name].data * data_rate[client.Client_id] for client in clients]), dim=0).clone()
             self.W[name].data += tmp
 
-    # 定义了一个缓存模型的方法，该方法将模型的参数、客户端ID和准确率存储到模型缓存列表中。
-    def cache_model(self, idcs, accuracies):
-        self.model_cache += [(idcs, [accuracies[i] for i in idcs])]
 
 
 
